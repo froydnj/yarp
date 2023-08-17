@@ -3587,7 +3587,7 @@ yp_rescue_modifier_node_create(yp_parser_t *parser, yp_node_t *expression, const
     return node;
 }
 
-// Allocate and initiliaze a new RescueNode node.
+// Allocate and initialize a new RescueNode node.
 static yp_rescue_node_t *
 yp_rescue_node_create(yp_parser_t *parser, const yp_token_t *keyword) {
     yp_rescue_node_t *node = YP_ALLOC_NODE(parser, yp_rescue_node_t);
@@ -5261,7 +5261,7 @@ lex_interpolation(yp_parser_t *parser, const char *pound) {
     }
 
     // Now we'll check against the character the follows the #. If it constitutes
-    // valid interplation, we'll handle that, otherwise we'll return
+    // valid interpolation, we'll handle that, otherwise we'll return
     // YP_TOKEN_NOT_PROVIDED.
     switch (pound[1]) {
         case '@': {
@@ -8000,7 +8000,7 @@ parse_statements(yp_parser_t *parser, yp_context_t context) {
             break;
         }
 
-        // If we have a terminator, then we will parse all consequtive terminators
+        // If we have a terminator, then we will parse all consecutive terminators
         // and then continue parsing the statements list.
         if (accept_any(parser, 2, YP_TOKEN_NEWLINE, YP_TOKEN_SEMICOLON)) {
             // If we have a terminator, then we will continue parsing the statements
@@ -9586,7 +9586,7 @@ parse_heredoc_dedent(yp_parser_t *parser, yp_node_t *node, yp_heredoc_quote_t qu
         }
 
         // Get a reference to the string struct that is being held by the string
-        // node. This is the value we're going to actual manipulate.
+        // node. This is the value we're going to actually manipulate.
         yp_string_t *string = &(((yp_string_node_t *) node)->unescaped);
         yp_string_ensure_owned(string);
 
@@ -10737,7 +10737,7 @@ parse_expression_prefix(yp_parser_t *parser, yp_binding_power_t binding_power) {
             }
 
             // If there's a string immediately following this heredoc, then it's a
-            // concatenatation. In this case we'll parse the next string and create a
+            // concatenation. In this case we'll parse the next string and create a
             // node in the tree that concatenates the two strings.
             if (parser->current.type == YP_TOKEN_STRING_BEGIN) {
                 return (yp_node_t *) yp_string_concat_node_create(
