@@ -412,13 +412,13 @@ impl<'pr> Location<'pr> {{
     /// Returns the pointer to the start of the range.
     #[must_use]
     pub fn start(&self) -> *const u8 {{
-        unsafe {{ self.pointer.as_ref().start }}
+        unsafe {{ self.pointer.as_ref().start.cast::<u8>() }}
     }}
 
     /// Returns the pointer to the end of the range.
     #[must_use]
     pub fn end(&self) -> *const u8 {{
-        unsafe {{ self.pointer.as_ref().end }}
+        unsafe {{ self.pointer.as_ref().end.cast::<u8>() }}
     }}
 
     /// Returns a byte slice for the range.
