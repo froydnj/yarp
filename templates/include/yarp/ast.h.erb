@@ -34,11 +34,20 @@ typedef struct {
 
 struct yp_node;
 
-typedef struct yp_node_list {
-    struct yp_node **nodes;
+typedef struct {
     size_t size;
     size_t capacity;
+    struct yp_node *nodes[];
+} yp_node_list_inner_t;
+
+typedef struct yp_node_list {
+    yp_node_list_inner_t *inner;
 } yp_node_list_t;
+
+typedef struct {
+    struct yp_node **nodes;
+    size_t size;
+} yp_node_span_t;
 
 enum yp_node_type {
 <%- nodes.each_with_index do |node, index| -%>

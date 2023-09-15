@@ -115,8 +115,12 @@ yp_ast_new(yp_parser_t *parser, yp_node_t *node, rb_encoding *encoding) {
                     <%- when YARP::NodeField, YARP::OptionalNodeField -%>
                     yp_node_stack_push(&node_stack, (yp_node_t *) cast-><%= field.name %>);
                     <%- when YARP::NodeListField -%>
-                    for (size_t index = 0; index < cast-><%= field.name %>.size; index++) {
-                        yp_node_stack_push(&node_stack, (yp_node_t *) cast-><%= field.name %>.nodes[index]);
+                    {
+                        yp_<%= node.human %>_t *cast = (yp_<%= node.human %>_t *)node;
+                        yp_node_span_t span = yp_node_list_span(&cast-><%= field.name %>);
+                        for (size_t index = 0; index < span.size; index++) {
+                            yp_node_stack_push(&node_stack, span.nodes[index]);
+                        }
                     }
                     <%- end -%>
                     <%- end -%>
@@ -148,9 +152,12 @@ yp_ast_new(yp_parser_t *parser, yp_node_t *node, rb_encoding *encoding) {
                     argv[<%= index %>] = rb_ary_pop(value_stack);
                     <%- when YARP::NodeListField -%>
 #line <%= __LINE__ + 1 %> "<%= File.basename(__FILE__) %>"
-                    argv[<%= index %>] = rb_ary_new_capa(cast-><%= field.name %>.size);
-                    for (size_t index = 0; index < cast-><%= field.name %>.size; index++) {
-                        rb_ary_push(argv[<%= index %>], rb_ary_pop(value_stack));
+                    {
+                        yp_node_span_t span = yp_node_list_span(&cast-><%= field.name %>);
+                        argv[<%= index %>] = rb_ary_new_capa(span.size);
+                        for (size_t index = 0; index < span.size; index++) {
+                            rb_ary_push(argv[<%= index %>], rb_ary_pop(value_stack));
+                        }
                     }
                     <%- when YARP::StringField -%>
 #line <%= __LINE__ + 1 %> "<%= File.basename(__FILE__) %>"

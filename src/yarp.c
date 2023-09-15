@@ -450,6 +450,8 @@ yp_parser_optional_constant_id_token(yp_parser_t *parser, const yp_token_t *toke
     return token->type == YP_TOKEN_NOT_PROVIDED ? 0 : yp_parser_constant_id_token(parser, token);
 }
 
+static size_t yp_statements_node_body_length(yp_statements_node_t *node);
+
 // The predicate of conditional nodes can change what would otherwise be regular
 // nodes into specialized nodes. For example:
 //
@@ -478,7 +480,9 @@ yp_conditional_predicate(yp_node_t *node) {
 
             if ((cast->body != NULL) && YP_NODE_TYPE_P(cast->body, YP_STATEMENTS_NODE)) {
                 yp_statements_node_t *statements = (yp_statements_node_t *) cast->body;
-                if (statements->body.size == 1) yp_conditional_predicate(statements->body.nodes[0]);
+                if (yp_statements_node_body_length(statements) == 1) {
+                    yp_conditional_predicate(statements->body.inner->nodes[0]);
+                }
             }
 
             break;
@@ -840,7 +844,8 @@ yp_arguments_node_create(yp_parser_t *parser) {
 // Return the size of the given arguments node.
 static size_t
 yp_arguments_node_size(yp_arguments_node_t *node) {
-    return node->arguments.size;
+    yp_node_span_t span = yp_node_list_span(&node->arguments);
+    return span.size;
 }
 
 // Append an argument to an arguments node.
@@ -875,13 +880,14 @@ yp_array_node_create(yp_parser_t *parser, const yp_token_t *opening) {
 // Return the size of the given array node.
 static inline size_t
 yp_array_node_size(yp_array_node_t *node) {
-    return node->elements.size;
+    yp_node_span_t span = yp_node_list_span(&node->elements);
+    return span.size;
 }
 
 // Append an argument to an array node.
 static inline void
 yp_array_node_elements_append(yp_array_node_t *node, yp_node_t *element) {
-    if (!node->elements.size && !node->opening_loc.start) {
+    if (yp_array_node_size(node) == 0 && !node->opening_loc.start) {
         node->base.location.start = element->location.start;
     }
     yp_node_list_append(&node->elements, element);
@@ -902,12 +908,13 @@ static yp_array_pattern_node_t *
 yp_array_pattern_node_node_list_create(yp_parser_t *parser, yp_node_list_t *nodes) {
     yp_array_pattern_node_t *node = YP_ALLOC_NODE(parser, yp_array_pattern_node_t);
 
+    yp_node_span_t span = yp_node_list_span(nodes);
     *node = (yp_array_pattern_node_t) {
         {
             .type = YP_ARRAY_PATTERN_NODE,
             .location = {
-                .start = nodes->nodes[0]->location.start,
-                .end = nodes->nodes[nodes->size - 1]->location.end
+                .start = span.nodes[0]->location.start,
+                .end = span.nodes[span.size - 1]->location.end
             },
         },
         .constant = NULL,
@@ -921,8 +928,8 @@ yp_array_pattern_node_node_list_create(yp_parser_t *parser, yp_node_list_t *node
     // For now we're going to just copy over each pointer manually. This could be
     // much more efficient, as we could instead resize the node list.
     bool found_rest = false;
-    for (size_t index = 0; index < nodes->size; index++) {
-        yp_node_t *child = nodes->nodes[index];
+    for (size_t index = 0; index < span.size; index++) {
+        yp_node_t *child = span.nodes[index];
 
         if (!found_rest && YP_NODE_TYPE_P(child, YP_SPLAT_NODE)) {
             node->rest = child;
@@ -2228,13 +2235,14 @@ static yp_find_pattern_node_t *
 yp_find_pattern_node_create(yp_parser_t *parser, yp_node_list_t *nodes) {
     yp_find_pattern_node_t *node = YP_ALLOC_NODE(parser, yp_find_pattern_node_t);
 
-    yp_node_t *left = nodes->nodes[0];
+    yp_node_span_t span = yp_node_list_span(nodes);
+    yp_node_t *left = span.nodes[0];
     yp_node_t *right;
 
-    if (nodes->size == 1) {
+    if (span.size == 1) {
         right = (yp_node_t *) yp_missing_node_create(parser, left->location.end, left->location.end);
     } else {
-        right = nodes->nodes[nodes->size - 1];
+        right = span.nodes[span.size - 1];
     }
 
     *node = (yp_find_pattern_node_t) {
@@ -2256,8 +2264,8 @@ yp_find_pattern_node_create(yp_parser_t *parser, yp_node_list_t *nodes) {
     // For now we're going to just copy over each pointer manually. This could be
     // much more efficient, as we could instead resize the node list to only point
     // to 1...-1.
-    for (size_t index = 1; index < nodes->size - 1; index++) {
-        yp_node_list_append(&node->requireds, nodes->nodes[index]);
+    for (size_t index = 1; index < span.size - 1; index++) {
+        yp_node_list_append(&node->requireds, span.nodes[index]);
     }
 
     return node;
@@ -2445,12 +2453,13 @@ static yp_hash_pattern_node_t *
 yp_hash_pattern_node_node_list_create(yp_parser_t *parser, yp_node_list_t *assocs) {
     yp_hash_pattern_node_t *node = YP_ALLOC_NODE(parser, yp_hash_pattern_node_t);
 
+    yp_node_span_t span = yp_node_list_span(assocs);
     *node = (yp_hash_pattern_node_t) {
         {
             .type = YP_HASH_PATTERN_NODE,
             .location = {
-                .start = assocs->nodes[0]->location.start,
-                .end = assocs->nodes[assocs->size - 1]->location.end
+                .start = span.nodes[0]->location.start,
+                .end = span.nodes[span.size - 1]->location.end
             },
         },
         .constant = NULL,
@@ -2460,8 +2469,8 @@ yp_hash_pattern_node_node_list_create(yp_parser_t *parser, yp_node_list_t *assoc
         .closing_loc = YP_OPTIONAL_LOCATION_NOT_PROVIDED_VALUE
     };
 
-    for (size_t index = 0; index < assocs->size; index++) {
-        yp_node_t *assoc = assocs->nodes[index];
+    for (size_t index = 0; index < span.size; index++) {
+        yp_node_t *assoc = span.nodes[index];
         yp_node_list_append(&node->assocs, assoc);
     }
 
@@ -2636,7 +2645,7 @@ yp_if_node_create(yp_parser_t *parser,
         end = end_keyword->end;
     } else if (consequent != NULL) {
         end = consequent->location.end;
-    } else if ((statements != NULL) && (statements->body.size != 0)) {
+    } else if (yp_statements_node_body_length(statements) != 0) {
         end = statements->base.location.end;
     } else {
         end = predicate->location.end;
@@ -3035,7 +3044,8 @@ yp_interpolated_string_node_create(yp_parser_t *parser, const yp_token_t *openin
 // Append a part to an InterpolatedStringNode node.
 static inline void
 yp_interpolated_string_node_append(yp_interpolated_string_node_t *node, yp_node_t *part) {
-    if (node->parts.size == 0 && node->opening_loc.start == NULL) {
+    yp_node_span_t span = yp_node_list_span(&node->parts);
+    if (span.size == 0 && node->opening_loc.start == NULL) {
         node->base.location.start = part->location.start;
     }
 
@@ -3073,7 +3083,8 @@ yp_interpolated_symbol_node_create(yp_parser_t *parser, const yp_token_t *openin
 
 static inline void
 yp_interpolated_symbol_node_append(yp_interpolated_symbol_node_t *node, yp_node_t *part) {
-    if (node->parts.size == 0 && node->opening_loc.start == NULL) {
+    yp_node_span_t span = yp_node_list_span(&node->parts);
+    if (span.size == 0 && node->opening_loc.start == NULL) {
         node->base.location.start = part->location.start;
     }
 
@@ -3990,7 +4001,7 @@ yp_rescue_node_reference_set(yp_rescue_node_t *node, yp_node_t *reference) {
 static void
 yp_rescue_node_statements_set(yp_rescue_node_t *node, yp_statements_node_t *statements) {
     node->statements = statements;
-    if ((statements != NULL) && (statements->body.size > 0)) {
+    if (yp_statements_node_body_length(statements) > 0) {
         node->base.location.end = statements->base.location.end;
     }
 }
@@ -4186,7 +4197,12 @@ yp_statements_node_create(yp_parser_t *parser) {
 // Get the length of the given StatementsNode node's body.
 static size_t
 yp_statements_node_body_length(yp_statements_node_t *node) {
-    return node && node->body.size;
+    if (node == NULL) {
+        return 0;
+    }
+
+    yp_node_span_t span = yp_node_list_span(&node->body);
+    return span.size;
 }
 
 // Set the location of the given StatementsNode.
@@ -8986,8 +9002,8 @@ parse_required_destructured_parameter(yp_parser_t *parser) {
 
     do {
         yp_node_t *param;
-
-        if (node->parameters.size > 0 && match1(parser, YP_TOKEN_PARENTHESIS_RIGHT)) {
+        yp_node_span_t span = yp_node_list_span(&node->parameters);
+        if (span.size > 0 && match1(parser, YP_TOKEN_PARENTHESIS_RIGHT)) {
             if (parsed_splat) {
                 yp_diagnostic_list_append(&parser->error_list, parser->previous.start, parser->previous.end, YP_ERR_ARGUMENT_SPLAT_AFTER_SPLAT);
             }
@@ -10286,14 +10302,15 @@ static int
 parse_heredoc_common_whitespace(yp_parser_t *parser, yp_node_list_t *nodes) {
     int common_whitespace = -1;
 
-    for (size_t index = 0; index < nodes->size; index++) {
-        yp_node_t *node = nodes->nodes[index];
+    yp_node_span_t span = yp_node_list_span(nodes);
+    for (size_t index = 0; index < span.size; index++) {
+        yp_node_t *node = span.nodes[index];
         if (!YP_NODE_TYPE_P(node, YP_STRING_NODE)) continue;
 
         // If the previous node wasn't a string node, we don't want to trim
         // whitespace. This could happen after an interpolated expression or
         // variable.
-        if (index == 0 || YP_NODE_TYPE_P(nodes->nodes[index - 1], YP_STRING_NODE)) {
+        if (index == 0 || YP_NODE_TYPE_P(span.nodes[index - 1], YP_STRING_NODE)) {
             common_whitespace = parse_heredoc_common_whitespace_for_single_node(parser, node, common_whitespace);
         }
     }
@@ -10400,14 +10417,15 @@ parse_heredoc_dedent(yp_parser_t *parser, yp_node_t *heredoc_node, yp_heredoc_qu
     // the whitespace from a node, then we'll drop it from the list entirely.
     size_t write_index = 0;
 
-    for (size_t read_index = 0; read_index < nodes->size; read_index++) {
-        yp_node_t *node = nodes->nodes[read_index];
+    yp_node_span_t span = yp_node_list_span(nodes);
+    for (size_t read_index = 0; read_index < span.size; read_index++) {
+        yp_node_t *node = span.nodes[read_index];
 
         // We're not manipulating child nodes that aren't strings. In this case
         // we'll skip past it and indicate that the subsequent node should not
         // be dedented.
         if (!YP_NODE_TYPE_P(node, YP_STRING_NODE)) {
-            nodes->nodes[write_index++] = node;
+            span.nodes[write_index++] = node;
             dedent_next = false;
             continue;
         }
@@ -10417,14 +10435,17 @@ parse_heredoc_dedent(yp_parser_t *parser, yp_node_t *heredoc_node, yp_heredoc_qu
         if (string_node->unescaped.length == 0) {
             yp_node_destroy(parser, node);
         } else {
-            nodes->nodes[write_index++] = node;
+            span.nodes[write_index++] = node;
         }
 
         // We always dedent the next node if it follows a string node.
         dedent_next = true;
     }
 
-    nodes->size = write_index;
+    // XXX
+    if (span.size > 0) {
+        nodes->inner->size = write_index;
+    }
 }
 
 static yp_node_t *
@@ -10645,7 +10666,7 @@ parse_pattern_hash(yp_parser_t *parser, yp_node_t *first_assoc) {
     }
 
     yp_hash_pattern_node_t *node = yp_hash_pattern_node_node_list_create(parser, &assocs);
-    free(assocs.nodes);
+    free(assocs.inner);
 
     return node;
 }
@@ -11045,13 +11066,13 @@ parse_pattern(yp_parser_t *parser, bool top_pattern, yp_diagnostic_id_t diag_id)
         // call this a find pattern, regardless of how many rest patterns are in
         // between because we know we already added the appropriate errors.
         // Otherwise we will create an array pattern.
-        if (YP_NODE_TYPE_P(nodes.nodes[0], YP_SPLAT_NODE) && YP_NODE_TYPE_P(nodes.nodes[nodes.size - 1], YP_SPLAT_NODE)) {
+        if (YP_NODE_TYPE_P(nodes.inner->nodes[0], YP_SPLAT_NODE) && YP_NODE_TYPE_P(nodes.inner->nodes[nodes.inner->size - 1], YP_SPLAT_NODE)) {
             node = (yp_node_t *) yp_find_pattern_node_create(parser, &nodes);
         } else {
             node = (yp_node_t *) yp_array_pattern_node_node_list_create(parser, &nodes);
         }
 
-        free(nodes.nodes);
+        free(nodes.inner);
     } else if (leading_rest) {
         // Otherwise, if we parsed a single splat pattern, then we know we have an
         // array pattern, so we can go ahead and create that node.
@@ -11921,7 +11942,8 @@ parse_expression_prefix(yp_parser_t *parser, yp_binding_power_t binding_power) {
 
             accept2(parser, YP_TOKEN_NEWLINE, YP_TOKEN_SEMICOLON);
             if (accept1(parser, YP_TOKEN_KEYWORD_ELSE)) {
-                if (case_node->conditions.size < 1) {
+                yp_node_span_t span = yp_node_list_span(&case_node->conditions);
+                if (span.size < 1) {
                     yp_diagnostic_list_append(&parser->error_list, parser->previous.start, parser->previous.end, YP_ERR_CASE_LONELY_ELSE);
                 }
 

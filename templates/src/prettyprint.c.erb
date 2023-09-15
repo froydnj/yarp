@@ -3,6 +3,7 @@
 #include <stdio.h>
 
 #include "yarp/ast.h"
+#include "yarp/node.h"
 #include "yarp/parser.h"
 #include "yarp/util/yp_buffer.h"
 
@@ -40,9 +41,13 @@ prettyprint_node(yp_buffer_t *buffer, yp_parser_t *parser, yp_node_t *node) {
             yp_buffer_append_str(buffer, "\"", 1);
             <%- when YARP::NodeListField -%>
             yp_buffer_append_str(buffer, "[", 1);
-            for (uint32_t index = 0; index < ((yp_<%= node.human %>_t *)node)-><%= field.name %>.size; index++) {
-                if (index != 0) yp_buffer_append_str(buffer, ", ", 2);
-                prettyprint_node(buffer, parser, (yp_node_t *) ((yp_<%= node.human %>_t *) node)-><%= field.name %>.nodes[index]);
+            {
+                yp_<%= node.human %>_t *cast = (yp_<%= node.human %>_t *)node;
+                yp_node_span_t span = yp_node_list_span(&cast-><%= field.name %>);
+                for (size_t index = 0; index < span.size; index++) {
+                    if (index != 0) yp_buffer_append_str(buffer, ", ", 2);
+                    prettyprint_node(buffer, parser, span.nodes[index]);
+                }
             }
             yp_buffer_append_str(buffer, "]", 1);
             <%- when YARP::ConstantField -%>

@@ -14,21 +14,46 @@ yp_node_memsize_node(yp_node_t *node, yp_memsize_t *memsize);
 // Calculate the size of the node list in bytes.
 static size_t
 yp_node_list_memsize(yp_node_list_t *node_list, yp_memsize_t *memsize) {
-    size_t size = sizeof(yp_node_list_t) + (node_list->capacity * sizeof(yp_node_t *));
-    for (size_t index = 0; index < node_list->size; index++) {
-        yp_node_memsize_node(node_list->nodes[index], memsize);
+    size_t size = 0;
+    if (node_list->inner == NULL) {
+        return size;
+    }
+
+    const yp_node_list_inner_t *list = node_list->inner;
+    size += sizeof(*list) + list->capacity * sizeof(yp_node_t *);
+    for (size_t index = 0; index < list->size; index++) {
+        yp_node_memsize_node(list->nodes[index], memsize);
     }
     return size;
 }
 
 // Append a new node onto the end of the node list.
 void
-yp_node_list_append(yp_node_list_t *list, yp_node_t *node) {
-    if (list->size == list->capacity) {
-        list->capacity = list->capacity == 0 ? 4 : list->capacity * 2;
-        list->nodes = (yp_node_t **) realloc(list->nodes, sizeof(yp_node_t *) * list->capacity);
+yp_node_list_append(yp_node_list_t *node_list, yp_node_t *node) {
+    yp_node_list_inner_t *list = node_list->inner;
+    if (list == NULL) {
+        const size_t default_capacity = 4;
+        const size_t alloc_size = sizeof(*list) + default_capacity * sizeof(yp_node_t *);
+        list = node_list->inner = (yp_node_list_inner_t *) realloc(list, alloc_size);
+        list->size = 0;
+        list->capacity = default_capacity;
+    } else if (list->size == list->capacity) {
+        const size_t new_capacity = list->capacity * 2;
+        const size_t alloc_size = sizeof(*list) + new_capacity * sizeof(yp_node_t *);
+        list = node_list->inner = (yp_node_list_inner_t *) realloc(list, alloc_size);
+        list->capacity = new_capacity;
     }
     list->nodes[list->size++] = node;
+}
+
+yp_node_span_t
+yp_node_list_span(yp_node_list_t *node_list) {
+    if (node_list->inner == NULL) {
+        return (yp_node_span_t) { .nodes = NULL, .size = 0 };
+    }
+
+    yp_node_list_inner_t *list = node_list->inner;
+    return (yp_node_span_t) { .nodes = &list->nodes[0], .size = list->size };
 }
 
 YP_EXPORTED_FUNCTION void
@@ -37,13 +62,16 @@ yp_node_destroy(yp_parser_t *parser, yp_node_t *node);
 // Deallocate the inner memory of a list of nodes. The parser argument is not
 // used, but is here for the future possibility of pre-allocating memory pools.
 static void
-yp_node_list_free(yp_parser_t *parser, yp_node_list_t *list) {
-    if (list->capacity > 0) {
-        for (size_t index = 0; index < list->size; index++) {
-            yp_node_destroy(parser, list->nodes[index]);
-        }
-        free(list->nodes);
+yp_node_list_free(yp_parser_t *parser, yp_node_list_t *node_list) {
+    if (node_list->inner == NULL) {
+        return;
     }
+
+    yp_node_list_inner_t *list = node_list->inner;
+    for (size_t index = 0; index < list->size; index++) {
+        yp_node_destroy(parser, list->nodes[index]);
+    }
+    free(list);
 }
 
 // Deallocate the space for a yp_node_t. Similarly to yp_node_alloc, we're not
@@ -114,7 +142,7 @@ yp_node_memsize_node(yp_node_t *node, yp_memsize_t *memsize) {
             <%- when YARP::StringField -%>
             memsize->memsize += yp_string_memsize(&cast-><%= field.name %>);
             <%- when YARP::NodeListField -%>
-            yp_node_list_memsize(&cast-><%= field.name %>, memsize);
+            memsize->memsize += yp_node_list_memsize(&cast-><%= field.name %>, memsize);
             <%- when YARP::ConstantListField -%>
             memsize->memsize += yp_constant_id_list_memsize(&cast-><%= field.name %>);
             <%- else -%>

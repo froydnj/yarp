@@ -7,6 +7,8 @@
 // Append a new node onto the end of the node list.
 void yp_node_list_append(yp_node_list_t *list, yp_node_t *node);
 
+yp_node_span_t yp_node_list_span(yp_node_list_t *list);
+
 // Clear the node but preserves the location.
 void yp_node_clear(yp_node_t *node);
 
@@ -27,7 +29,7 @@ YP_EXPORTED_FUNCTION void yp_node_memsize(yp_node_t *node, yp_memsize_t *memsize
 // Returns a string representation of the given node type.
 YP_EXPORTED_FUNCTION const char * yp_node_type_to_str(yp_node_type_t node_type);
 
-#define YP_EMPTY_NODE_LIST ((yp_node_list_t) { .nodes = NULL, .size = 0, .capacity = 0 })
+#define YP_EMPTY_NODE_LIST ((yp_node_list_t) { .inner = NULL })
 
 #endif // YARP_NODE_H
 
