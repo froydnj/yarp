@@ -19,6 +19,7 @@ YP_EXPORTED_FUNCTION void yp_node_destroy(yp_parser_t *parser, struct yp_node *n
 typedef struct {
     size_t memsize;
     size_t node_count;
+    size_t locations;
 } yp_memsize_t;
 
 // Calculates the memory footprint of a given node.

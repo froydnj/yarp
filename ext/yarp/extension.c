@@ -521,6 +521,7 @@ memsize(VALUE self, VALUE string) {
     rb_hash_aset(result, ID2SYM(rb_intern("length")), INT2FIX(length));
     rb_hash_aset(result, ID2SYM(rb_intern("memsize")), INT2FIX(memsize.memsize));
     rb_hash_aset(result, ID2SYM(rb_intern("node_count")), INT2FIX(memsize.node_count));
+    rb_hash_aset(result, ID2SYM(rb_intern("locations")), INT2FIX(memsize.locations));
     return result;
 }
 
